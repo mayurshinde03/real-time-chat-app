@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import io from 'socket.io-client'; // ✅ Fixed: Default import for v2.3.0
+import io from 'socket.io-client'; // ✅ FIXED: Default import only
 import './ModernChat.css';
 
 interface Message {
@@ -20,7 +20,7 @@ interface UserInfo {
 }
 
 const ModernChat: React.FC = () => {
-  const [socket, setSocket] = useState<any>(null); // ✅ Fixed: Use any for v2.3.0
+  const [socket, setSocket] = useState<any>(null); // ✅ Use 'any' for v2.3.0
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [username, setUsername] = useState('');
