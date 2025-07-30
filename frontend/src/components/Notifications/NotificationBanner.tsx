@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import './NotificationBanner.css';
 
 interface Notification {
@@ -18,10 +18,10 @@ interface NotificationBannerProps {
 const NotificationBanner: React.FC<NotificationBannerProps> = ({ notifications, onRemove }) => {
   useEffect(() => {
     notifications.forEach(notification => {
-      if (notification.duration !== 0) {
+      if (notification.duration && notification.duration > 0) {
         const timer = setTimeout(() => {
           onRemove(notification.id);
-        }, notification.duration || 4000);
+        }, notification.duration);
 
         return () => clearTimeout(timer);
       }

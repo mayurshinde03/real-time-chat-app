@@ -89,7 +89,7 @@ const ProfilePicture: React.FC<ProfilePictureProps> = ({
   );
 };
 
-// Generate colorful avatar using DiceBear or similar service
+// Generate colorful avatar using DiceBear API
 const generateAvatar = (seed: string): string => {
   const styles = ['avataaars', 'big-smile', 'bottts', 'identicon', 'initials', 'pixel-art'];
   const style = styles[Math.floor(Math.random() * styles.length)];

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import  io  from 'socket.io-client';
+import io from 'socket.io-client';
 import NotificationBanner from '../Notifications/NotificationBanner';
 import ProfilePicture from '../Profile/ProfilePicture';
 import './ModernChat.css';
@@ -44,8 +44,6 @@ const ModernChat: React.FC = () => {
   const [onlineUsers, setOnlineUsers] = useState<UserInfo[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [userCountry, setUserCountry] = useState('Unknown');
-
-  
   const [isLoading, setIsLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -66,7 +64,6 @@ const ModernChat: React.FC = () => {
     const id = Date.now().toString();
     setNotifications(prev => [...prev, { ...notification, id }]);
     
-    // Play sound if enabled
     if (soundEnabled && notification.type === 'info') {
       playNotificationSound();
     }
@@ -80,7 +77,7 @@ const ModernChat: React.FC = () => {
     try {
       const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IAAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmkfCkjO8ueXUAkVZrvt4KBODgxMpeLxtWEcBz+Y3PLEiSkGKX/J8NyQQwoWYbjqwaJQDghQp+HxtGAdBj2a2/PGdSUFLYDN8diJOAgZabzn56BLDAZRpePxtmI=');
       audio.volume = 0.1;
-      audio.play().catch(() => {}); // Ignore autoplay restrictions
+      audio.play().catch(() => {});
     } catch (error) {
       // Ignore audio errors
     }
@@ -108,6 +105,33 @@ const ModernChat: React.FC = () => {
       return () => clearInterval(interval);
     }
   }, [username]);
+
+  // Auto-delete messages older than 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMessages(prev => {
+        const cutoff = Date.now() - 30000; // 30 seconds ago
+        const filteredMessages = prev.filter(msg => {
+          const messageTime = new Date(msg.timestamp).getTime();
+          return messageTime > cutoff;
+        });
+        
+        // Notify if messages were removed
+        if (filteredMessages.length < prev.length) {
+          console.log(`Removed ${prev.length - filteredMessages.length} old messages`);
+        }
+        
+        return filteredMessages;
+      });
+      
+      // Notify server to clean old messages
+      if (socket) {
+        socket.emit('cleanOldMessages', 30000);
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [socket]);
 
   // Get user's country
   useEffect(() => {
@@ -367,9 +391,10 @@ const ModernChat: React.FC = () => {
           onRemove={removeNotification} 
         />
         
-        <div className="login-card glass-effect">
+        <div className="login-card modern-card">
           <div className="login-header">
-            <h1>🌍 Global Chat</h1>
+            <div className="app-logo">🌍</div>
+            <h1>Global Chat</h1>
             <p>Connect with people from around the world!</p>
           </div>
           
@@ -383,7 +408,7 @@ const ModernChat: React.FC = () => {
             />
           </div>
           
-          <div className="connection-status">
+          <div className="connection-status modern-status">
             <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
               <div className="status-dot"></div>
               <span>
@@ -391,12 +416,13 @@ const ModernChat: React.FC = () => {
               </span>
             </div>
             <div className="location-info">
-              📍 Your location: {userCountry}
+              <span className="location-icon">📍</span>
+              <span>Your location: {userCountry}</span>
             </div>
           </div>
 
           <div className="login-form">
-            <div className="input-group">
+            <div className="input-group modern-input">
               <input
                 type="text"
                 placeholder="Enter your name"
@@ -409,7 +435,7 @@ const ModernChat: React.FC = () => {
               <div className="input-actions">
                 <button 
                   onClick={generateRandomName}
-                  className="random-btn"
+                  className="random-btn modern-btn"
                   title="Generate random name"
                 >
                   🎲
@@ -417,7 +443,7 @@ const ModernChat: React.FC = () => {
                 <button 
                   onClick={joinChat}
                   disabled={tempUsername.length < 2 || !isConnected || isLoading}
-                  className="join-btn"
+                  className="join-btn modern-btn primary"
                 >
                   {isLoading ? '⏳' : '🚀'} Join Chat
                 </button>
@@ -430,11 +456,11 @@ const ModernChat: React.FC = () => {
 
           <div className="login-footer">
             <div className="theme-toggle">
-              <button onClick={toggleTheme} className="theme-btn">
+              <button onClick={toggleTheme} className="theme-btn modern-btn">
                 {isDarkMode ? '☀️' : '🌙'} {isDarkMode ? 'Light' : 'Dark'} Mode
               </button>
             </div>
-            <p>🤝 Be respectful and have fun!</p>
+            <p className="footer-text">🤝 Be respectful and have fun!</p>
           </div>
         </div>
       </div>
@@ -449,9 +475,12 @@ const ModernChat: React.FC = () => {
       />
 
       {/* Enhanced Header */}
-      <header className="chat-header glass-effect">
+      <header className="chat-header modern-header">
         <div className="header-info">
-          <h1>🌍 Global Chat</h1>
+          <div className="app-branding">
+            <span className="app-icon">🌍</span>
+            <h1>Global Chat</h1>
+          </div>
           <div className="user-info">
             <ProfilePicture
               username={username}
@@ -504,7 +533,7 @@ const ModernChat: React.FC = () => {
               </div>
             </div>
             
-            <button onClick={leaveChat} className="leave-btn">
+            <button onClick={leaveChat} className="leave-btn modern-btn danger">
               🚪 Leave
             </button>
           </div>
@@ -513,19 +542,23 @@ const ModernChat: React.FC = () => {
 
       <div className="chat-body">
         {/* Enhanced Messages Area */}
-        <div className="messages-section glass-effect">
+        <div className="messages-section modern-card">
           <div className="messages-container">
             {messages.length === 0 ? (
               <div className="welcome-message">
                 <div className="welcome-animation">🎉</div>
                 <h3>Welcome to Global Chat!</h3>
                 <p>Start a conversation with people from around the world</p>
+                <div className="welcome-feature">
+                  <span className="feature-icon">⏰</span>
+                  <span>Messages auto-delete after 30 seconds to keep chat fresh!</span>
+                </div>
               </div>
             ) : (
               messages.map((msg) => (
                 <div 
                   key={msg.id} 
-                  className={`message ${msg.type} ${msg.user === username ? 'own-message' : ''}`}
+                  className={`message modern-message ${msg.type} ${msg.user === username ? 'own-message' : ''}`}
                 >
                   {msg.type === 'system' ? (
                     <div className="system-message">
@@ -562,7 +595,7 @@ const ModernChat: React.FC = () => {
             )}
             
             {typingUsers.length > 0 && (
-              <div className="typing-indicator">
+              <div className="typing-indicator modern-typing">
                 <div className="typing-dots">
                   <span></span>
                   <span></span>
@@ -578,11 +611,11 @@ const ModernChat: React.FC = () => {
           </div>
 
           {/* Enhanced Message Input */}
-          <div className="message-input-container glass-effect">
+          <div className="message-input-container modern-input-container">
             <div className="input-wrapper">
               <button 
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="emoji-btn"
+                className="emoji-btn modern-btn"
                 title="Add emoji"
               >
                 😀
@@ -605,7 +638,7 @@ const ModernChat: React.FC = () => {
                 <button 
                   onClick={sendMessage}
                   disabled={!inputValue.trim() || !isConnected}
-                  className="send-btn"
+                  className="send-btn modern-btn primary"
                   title="Send message"
                 >
                   🚀
@@ -614,7 +647,7 @@ const ModernChat: React.FC = () => {
             </div>
 
             {showEmojiPicker && (
-              <div className="emoji-picker glass-effect">
+              <div className="emoji-picker modern-card">
                 {emojis.map((emoji, index) => (
                   <button
                     key={index}
@@ -630,11 +663,11 @@ const ModernChat: React.FC = () => {
         </div>
 
         {/* Enhanced Users Sidebar */}
-        <div className="users-sidebar glass-effect">
+        <div className="users-sidebar modern-card">
           <div className="sidebar-header">
             <h3>🟢 Online Now ({onlineUsers.length})</h3>
             <button 
-              className="refresh-btn"
+              className="refresh-btn modern-btn"
               onClick={() => socket?.emit('requestUserList')}
               title="Refresh user list"
             >
@@ -652,7 +685,7 @@ const ModernChat: React.FC = () => {
               onlineUsers.map((user, index) => (
                 <div 
                   key={index} 
-                  className={`user-item ${user.username === username ? 'current-user' : ''}`}
+                  className={`user-item modern-user-item ${user.username === username ? 'current-user' : ''}`}
                 >
                   <ProfilePicture
                     username={user.username}
