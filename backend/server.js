@@ -6,68 +6,222 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Enhanced CORS configuration
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000", "https://your-chat-app.vercel.app"],
-    methods: ["GET", "POST"]
-  }
+    origin: [
+      "http://localhost:3000",
+      "https://your-vercel-url.vercel.app", // Replace with your actual Vercel URL
+      "https://*.vercel.app"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
 });
 
-// Your existing socket code...
-let globalUsers = new Map();
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://your-vercel-url.vercel.app", // Replace with your actual Vercel URL
+    "https://*.vercel.app"
+  ],
+  credentials: true
+}));
 
-app.use(cors());
 app.use(express.json());
 
-io.on('connection', (socket) => {
-  console.log('New connection:', socket.id);
-  
-  socket.on('userJoined', (data) => {
-    const { username, country } = data;
-    globalUsers.set(socket.id, { username, country, socketId: socket.id });
-    
-    io.emit('onlineCount', globalUsers.size);
-    io.emit('onlineUsers', Array.from(globalUsers.values()));
-    
-    socket.broadcast.emit('userJoined', {
-      user: username,
-      country: country,
-      message: `${username} joined from ${country}`
-    });
-  });
+// Store connected users and message history
+let globalUsers = new Map();
+let messageHistory = [];
+const MAX_HISTORY = 100;
 
-  socket.on('sendMessage', (message) => {
-    const user = globalUsers.get(socket.id);
-    if (user) {
-      const globalMessage = {
-        ...message,
-        user: user.username,
-        country: user.country,
-        timestamp: new Date().toLocaleTimeString()
+// API Routes
+app.get('/', (req, res) => {
+  res.json({
+    message: '🌍 Global Chat Server is running!',
+    status: 'success',
+    onlineUsers: globalUsers.size,
+    totalMessages: messageHistory.length,
+    timestamp: new Date(),
+    version: '2.0.0'
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    uptime: process.uptime(),
+    onlineUsers: globalUsers.size,
+    messageCount: messageHistory.length
+  });
+});
+
+app.get('/api/stats', (req, res) => {
+  res.json({
+    onlineUsers: globalUsers.size,
+    users: Array.from(globalUsers.values()).map(user => ({
+      username: user.username,
+      country: user.country,
+      joinTime: user.joinTime
+    })),
+    messageCount: messageHistory.length,
+    countries: [...new Set(Array.from(globalUsers.values()).map(u => u.country))]
+  });
+});
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log(`🔗 New connection: ${socket.id}`);
+
+  // Send recent message history to new user
+  if (messageHistory.length > 0) {
+    socket.emit('messageHistory', messageHistory.slice(-20)); // Last 20 messages
+  }
+
+  // Handle user joining
+  socket.on('userJoined', (data) => {
+    try {
+      const { username, country = 'Unknown' } = data;
+      
+      if (!username || username.trim().length < 2) {
+        socket.emit('error', 'Username must be at least 2 characters');
+        return;
+      }
+
+      const userInfo = {
+        username: username.trim(),
+        country: country,
+        socketId: socket.id,
+        joinTime: new Date().toISOString()
       };
-      io.emit('receiveMessage', globalMessage);
+
+      globalUsers.set(socket.id, userInfo);
+      
+      console.log(`👤 ${userInfo.username} from ${userInfo.country} joined (Total: ${globalUsers.size})`);
+
+      // Update all clients with new user count and list
+      io.emit('onlineCount', globalUsers.size);
+      io.emit('onlineUsers', Array.from(globalUsers.values()));
+      
+      // Broadcast join notification
+      const joinMessage = {
+        id: `system-${Date.now()}`,
+        type: 'system',
+        text: `${userInfo.username} joined from ${userInfo.country}`,
+        timestamp: new Date().toISOString(),
+        user: 'System'
+      };
+
+      io.emit('receiveMessage', joinMessage);
+      
+    } catch (error) {
+      console.error('Error in userJoined:', error);
+      socket.emit('error', 'Failed to join chat');
     }
   });
 
-  socket.on('disconnect', () => {
+  // Handle messages
+  socket.on('sendMessage', (messageData) => {
+    try {
+      const user = globalUsers.get(socket.id);
+      
+      if (!user) {
+        socket.emit('error', 'Please join the chat first');
+        return;
+      }
+
+      if (!messageData.text || messageData.text.trim().length === 0) {
+        socket.emit('error', 'Message cannot be empty');
+        return;
+      }
+
+      if (messageData.text.trim().length > 500) {
+        socket.emit('error', 'Message too long (max 500 characters)');
+        return;
+      }
+
+      const message = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: 'user',
+        text: messageData.text.trim(),
+        user: user.username,
+        country: user.country,
+        timestamp: new Date().toISOString(),
+        socketId: socket.id
+      };
+
+      // Add to message history
+      messageHistory.push(message);
+      if (messageHistory.length > MAX_HISTORY) {
+        messageHistory.shift();
+      }
+
+      console.log(`💬 Message from ${user.username}: ${message.text}`);
+      
+      // Broadcast message to all connected clients
+      io.emit('receiveMessage', message);
+      
+    } catch (error) {
+      console.error('Error in sendMessage:', error);
+      socket.emit('error', 'Failed to send message');
+    }
+  });
+
+  // Handle typing indicators
+  socket.on('typing', (data) => {
     const user = globalUsers.get(socket.id);
     if (user) {
-      globalUsers.delete(socket.id);
-      io.emit('onlineCount', globalUsers.size);
-      io.emit('onlineUsers', Array.from(globalUsers.values()));
-      socket.broadcast.emit('userLeft', {
-        user: user.username,
-        message: `${user.username} left the chat`
+      socket.broadcast.emit('userTyping', {
+        username: user.username,
+        isTyping: data.isTyping
       });
     }
   });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    const user = globalUsers.get(socket.id);
+    if (user) {
+      console.log(`👋 ${user.username} disconnected (Total: ${globalUsers.size - 1})`);
+      
+      globalUsers.delete(socket.id);
+      
+      // Update all clients
+      io.emit('onlineCount', globalUsers.size);
+      io.emit('onlineUsers', Array.from(globalUsers.values()));
+      
+      // Broadcast leave notification
+      const leaveMessage = {
+        id: `system-${Date.now()}`,
+        type: 'system',
+        text: `${user.username} left the chat`,
+        timestamp: new Date().toISOString(),
+        user: 'System'
+      };
+
+      io.emit('receiveMessage', leaveMessage);
+    }
+  });
+
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
 });
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Global Chat Server is running!' });
+// Error handling
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Rejection:', error);
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🌍 Global Chat Server running on port ${PORT}`);
+  console.log(`🚀 Ready for worldwide connections!`);
+  console.log(`📊 Server started at ${new Date().toISOString()}`);
 });

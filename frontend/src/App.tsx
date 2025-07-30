@@ -1,8 +1,8 @@
 import React from 'react';
-import GlobalChat from './components/Chat/GlobalChat';
+import ModernChat from './components/Chat/ModernChat';
 
 function App() {
-  return <GlobalChat />;
+  return <ModernChat />;
 }
 
 export default App;
