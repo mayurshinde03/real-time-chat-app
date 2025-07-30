@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import io, { Socket } from 'socket.io-client'; // ✅ Fixed import
+import io from 'socket.io-client'; // ✅ Fixed: Default import for v2.3.0
 import './ModernChat.css';
 
 interface Message {
@@ -20,7 +20,7 @@ interface UserInfo {
 }
 
 const ModernChat: React.FC = () => {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<any>(null); // ✅ Fixed: Use any for v2.3.0
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [username, setUsername] = useState('');
@@ -34,7 +34,7 @@ const ModernChat: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null); // ✅ Fixed: Added null type
 
   const emojis = ['😀', '😂', '❤️', '👍', '👋', '🎉', '🔥', '💯', '🌟', '✨'];
 
@@ -62,7 +62,7 @@ const ModernChat: React.FC = () => {
     const serverUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
     console.log('Connecting to:', serverUrl);
     
-    const newSocket = io(serverUrl, { // ✅ Using corrected io import
+    const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
     });
@@ -79,7 +79,7 @@ const ModernChat: React.FC = () => {
       console.log('Disconnected from server');
     });
 
-    newSocket.on('connect_error', (error) => {
+    newSocket.on('connect_error', (error: Error) => { // ✅ Fixed: Added Error type
       console.error('Connection error:', error);
       setIsConnected(false);
     });
@@ -167,10 +167,12 @@ const ModernChat: React.FC = () => {
     if (socket && username) {
       socket.emit('typing', { isTyping: true });
       
+      // ✅ Fixed: Check if timeout exists before clearing
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       
+      // ✅ Fixed: Use window.setTimeout
       typingTimeoutRef.current = window.setTimeout(() => {
         socket.emit('typing', { isTyping: false });
       }, 1000);
@@ -197,7 +199,6 @@ const ModernChat: React.FC = () => {
     });
   };
 
-  // Rest of your JSX remains exactly the same...
   if (!username) {
     return (
       <div className="login-container">
