@@ -12,8 +12,8 @@ const io = socketIo(server, {
   cors: {
     origin: [
       "http://localhost:3000",
-      "https://your-vercel-url.vercel.app", // Replace with your actual Vercel URL
-      "https://*.vercel.app"
+      "https://*.vercel.app",
+      /https:\/\/.*\.vercel\.app$/
     ],
     methods: ["GET", "POST"],
     credentials: true
@@ -24,8 +24,8 @@ const io = socketIo(server, {
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://your-vercel-url.vercel.app", // Replace with your actual Vercel URL
-    "https://*.vercel.app"
+    "https://*.vercel.app",
+    /https:\/\/.*\.vercel\.app$/
   ],
   credentials: true
 }));
