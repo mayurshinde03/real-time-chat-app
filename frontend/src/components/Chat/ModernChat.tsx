@@ -34,7 +34,7 @@ const ModernChat: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const typingTimeoutRef = useRef<number | null>(null); // ✅ Fixed: Added null type and initial value
 
   const emojis = ['😀', '😂', '❤️', '👍', '👋', '🎉', '🔥', '💯', '🌟', '✨'];
 
@@ -167,8 +167,13 @@ const ModernChat: React.FC = () => {
     if (socket && username) {
       socket.emit('typing', { isTyping: true });
       
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
+      // ✅ Fixed: Check if timeout exists before clearing
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // ✅ Fixed: Use window.setTimeout and assign to ref
+      typingTimeoutRef.current = window.setTimeout(() => {
         socket.emit('typing', { isTyping: false });
       }, 1000);
     }
