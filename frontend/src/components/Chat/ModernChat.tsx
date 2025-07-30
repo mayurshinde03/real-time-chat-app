@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import io from 'socket.io-client'; // ✅ FIXED: Default import only
+import io, { Socket } from 'socket.io-client';
 import './ModernChat.css';
 
 interface Message {
@@ -20,7 +20,7 @@ interface UserInfo {
 }
 
 const ModernChat: React.FC = () => {
-  const [socket, setSocket] = useState<any>(null); // ✅ Use 'any' for v2.3.0
+  const [socket, setSocket] = useState<ReturnType<typeof io> | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [username, setUsername] = useState('');
@@ -34,7 +34,7 @@ const ModernChat: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<number | null>(null); // ✅ Fixed: Added null type
+  const typingTimeoutRef = useRef<number | null>(null);
 
   const emojis = ['😀', '😂', '❤️', '👍', '👋', '🎉', '🔥', '💯', '🌟', '✨'];
 
@@ -65,6 +65,10 @@ const ModernChat: React.FC = () => {
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     setSocket(newSocket);
@@ -79,7 +83,7 @@ const ModernChat: React.FC = () => {
       console.log('Disconnected from server');
     });
 
-    newSocket.on('connect_error', (error: Error) => { // ✅ Fixed: Added Error type
+    newSocket.on('connect_error', (error: Error) => {
       console.error('Connection error:', error);
       setIsConnected(false);
     });
@@ -167,12 +171,10 @@ const ModernChat: React.FC = () => {
     if (socket && username) {
       socket.emit('typing', { isTyping: true });
       
-      // ✅ Fixed: Check if timeout exists before clearing
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       
-      // ✅ Fixed: Use window.setTimeout
       typingTimeoutRef.current = window.setTimeout(() => {
         socket.emit('typing', { isTyping: false });
       }, 1000);
