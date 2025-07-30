@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
-import NotificationBanner from '../Notifications/NotificationBanner';
-import ProfilePicture from '../Profile/ProfilePicture';
 import './ModernChat.css';
 
 interface Message {
@@ -11,7 +9,6 @@ interface Message {
   user: string;
   country?: string;
   timestamp: string;
-  socketId?: string;
   avatar?: string;
 }
 
@@ -21,16 +18,6 @@ interface UserInfo {
   socketId: string;
   joinTime: string;
   avatar?: string;
-  isTyping?: boolean;
-}
-
-interface Notification {
-  id: string;
-  type: 'success' | 'info' | 'warning' | 'error';
-  title: string;
-  message: string;
-  duration?: number;
-  icon?: string;
 }
 
 const ModernChat: React.FC = () => {
@@ -39,49 +26,16 @@ const ModernChat: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [username, setUsername] = useState('');
   const [tempUsername, setTempUsername] = useState('');
-  const [userAvatar, setUserAvatar] = useState('');
   const [onlineCount, setOnlineCount] = useState(0);
   const [onlineUsers, setOnlineUsers] = useState<UserInfo[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [userCountry, setUserCountry] = useState('Unknown');
   const [isLoading, setIsLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [chatStats, setChatStats] = useState({ messagesSent: 0, activeTime: 0 });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
-  const joinTimeRef = useRef<Date>(new Date());
-
-  const emojis = ['😀', '😂', '❤️', '👍', '👋', '🎉', '🔥', '💯', '🌟', '✨', '🤔', '😍', '🥳', '👏', '🌈'];
-
-  // Enhanced notification system
-  const addNotification = useCallback((notification: Omit<Notification, 'id'>) => {
-    const id = Date.now().toString();
-    setNotifications(prev => [...prev, { ...notification, id }]);
-    
-    if (soundEnabled && notification.type === 'info') {
-      playNotificationSound();
-    }
-  }, [soundEnabled]);
-
-  const removeNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  }, []);
-
-  const playNotificationSound = () => {
-    try {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IAAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmkfCkjO8ueXUAkVZrvt4KBODgxMpeLxtWEcBz+Y3PLEiSkGKX/J8NyQQwoWYbjqwaJQDghQp+HxtGAdBj2a2/PGdSUFLYDN8diJOAgZabzn56BLDAZRpePxtmI=');
-      audio.volume = 0.1;
-      audio.play().catch(() => {});
-    } catch (error) {
-      // Ignore audio errors
-    }
-  };
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -92,66 +46,22 @@ const ModernChat: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Track active time
-  useEffect(() => {
-    if (username) {
-      const interval = setInterval(() => {
-        setChatStats(prev => ({
-          ...prev,
-          activeTime: Math.floor((Date.now() - joinTimeRef.current.getTime()) / 1000)
-        }));
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [username]);
-
-  // Auto-delete messages older than 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMessages(prev => {
-        const cutoff = Date.now() - 30000; // 30 seconds ago
-        const filteredMessages = prev.filter(msg => {
-          const messageTime = new Date(msg.timestamp).getTime();
-          return messageTime > cutoff;
-        });
-        
-        // Notify if messages were removed
-        if (filteredMessages.length < prev.length) {
-          console.log(`Removed ${prev.length - filteredMessages.length} old messages`);
-        }
-        
-        return filteredMessages;
-      });
-      
-      // Notify server to clean old messages
-      if (socket) {
-        socket.emit('cleanOldMessages', 30000);
-      }
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [socket]);
-
   // Get user's country
   useEffect(() => {
     fetch('https://ipapi.co/json/')
       .then(res => res.json())
-      .then(data => {
-        setUserCountry(data.country_name || 'Unknown');
-      })
+      .then(data => setUserCountry(data.country_name || 'Unknown'))
       .catch(() => setUserCountry('Unknown'));
   }, []);
 
-  // Socket connection with enhanced features
+  // Socket connection
   useEffect(() => {
     const serverUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
-    console.log('Connecting to:', serverUrl);
+    console.log('🔗 Connecting to:', serverUrl);
     
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
-      forceNew: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -161,54 +71,26 @@ const ModernChat: React.FC = () => {
 
     newSocket.on('connect', () => {
       setIsConnected(true);
-      console.log('Connected to server');
-      addNotification({
-        type: 'success',
-        title: 'Connected!',
-        message: 'You are now connected to the global chat',
-        icon: '🌐'
-      });
+      console.log('✅ Connected to server');
     });
 
     newSocket.on('disconnect', () => {
       setIsConnected(false);
-      console.log('Disconnected from server');
-      addNotification({
-        type: 'warning',
-        title: 'Disconnected',
-        message: 'Connection lost. Trying to reconnect...',
-        icon: '📡'
-      });
+      console.log('❌ Disconnected from server');
     });
 
     newSocket.on('connect_error', (error: Error) => {
-      console.error('Connection error:', error);
+      console.error('🔥 Connection error:', error);
       setIsConnected(false);
-      addNotification({
-        type: 'error',
-        title: 'Connection Error',
-        message: 'Failed to connect to chat server',
-        icon: '⚠️'
-      });
     });
 
     newSocket.on('receiveMessage', (message: Message) => {
-      console.log('Received message:', message);
+      console.log('📨 Received message:', message);
       setMessages(prev => [...prev, message]);
-      
-      // Show notification for new messages (when window is not focused)
-      if (document.hidden && message.user !== username && message.type === 'user') {
-        addNotification({
-          type: 'info',
-          title: `New message from ${message.user}`,
-          message: message.text.substring(0, 50) + (message.text.length > 50 ? '...' : ''),
-          icon: '💬'
-        });
-      }
     });
 
     newSocket.on('messageHistory', (history: Message[]) => {
-      console.log('Received message history:', history);
+      console.log('📚 Received message history:', history);
       setMessages(history);
     });
 
@@ -228,100 +110,51 @@ const ModernChat: React.FC = () => {
       }
     });
 
-    newSocket.on('userJoined', (data: { username: string; country: string }) => {
-      addNotification({
-        type: 'info',
-        title: 'User Joined',
-        message: `${data.username} from ${data.country} joined the chat`,
-        icon: '👋'
-      });
-    });
-
-    newSocket.on('userLeft', (data: { username: string }) => {
-      addNotification({
-        type: 'info',
-        title: 'User Left',
-        message: `${data.username} left the chat`,
-        icon: '👋'
-      });
-    });
-
     newSocket.on('error', (error: string) => {
       console.error('Socket error:', error);
-      addNotification({
-        type: 'error',
-        title: 'Error',
-        message: error,
-        icon: '❌'
-      });
     });
 
     return () => {
       newSocket.close();
     };
-  }, [username, addNotification]);
+  }, []);
 
-  const handleAvatarChange = (avatar: string) => {
-    setUserAvatar(avatar);
-    if (socket && username) {
-      socket.emit('updateAvatar', { avatar });
-    }
-  };
-
-  const joinChat = async () => {
+  const joinChat = () => {
     if (tempUsername.trim().length >= 2 && socket && isConnected) {
       setIsLoading(true);
       const user = tempUsername.trim();
       setUsername(user);
-      joinTimeRef.current = new Date();
       
       socket.emit('userJoined', { 
         username: user, 
-        country: userCountry,
-        avatar: userAvatar
+        country: userCountry 
       });
       
       setIsLoading(false);
-      
-      addNotification({
-        type: 'success',
-        title: 'Welcome!',
-        message: `You joined as ${user}`,
-        icon: '🎉'
-      });
     }
   };
 
   const leaveChat = () => {
     if (socket && username) {
+      socket.emit('userLeft', username);
       socket.disconnect();
       setUsername('');
       setTempUsername('');
       setMessages([]);
       setOnlineUsers([]);
       setOnlineCount(0);
-      setChatStats({ messagesSent: 0, activeTime: 0 });
-      
-      addNotification({
-        type: 'info',
-        title: 'Left Chat',
-        message: 'You have left the global chat',
-        icon: '👋'
-      });
     }
   };
 
   const sendMessage = () => {
     if (inputValue.trim() && username && socket && isConnected) {
-      console.log('Sending message:', inputValue);
+      console.log('📤 Sending message:', inputValue);
       
       socket.emit('sendMessage', {
         text: inputValue.trim(),
-        timestamp: new Date().toISOString(),
-        avatar: userAvatar
+        timestamp: new Date().toISOString()
       });
       
-      setChatStats(prev => ({ ...prev, messagesSent: prev.messagesSent + 1 }));
       setInputValue('');
       inputRef.current?.focus();
     }
@@ -330,7 +163,6 @@ const ModernChat: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     
-    // Typing indicator
     if (socket && username) {
       socket.emit('typing', { isTyping: true });
       
@@ -344,19 +176,6 @@ const ModernChat: React.FC = () => {
     }
   };
 
-  const addEmoji = (emoji: string) => {
-    setInputValue(prev => prev + emoji);
-    setShowEmojiPicker(false);
-    inputRef.current?.focus();
-  };
-
-  const generateRandomName = () => {
-    const adjectives = ['Cool', 'Smart', 'Happy', 'Brave', 'Kind', 'Funny', 'Creative', 'Bright', 'Awesome', 'Amazing'];
-    const nouns = ['Panda', 'Tiger', 'Eagle', 'Dolphin', 'Lion', 'Wolf', 'Fox', 'Bear', 'Dragon', 'Phoenix'];
-    const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 999)}`;
-    setTempUsername(randomName);
-  };
-
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { 
       hour: '2-digit', 
@@ -364,103 +183,74 @@ const ModernChat: React.FC = () => {
     });
   };
 
-  const formatActiveTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    } else {
-      return `${secs}s`;
-    }
+  const generateAvatar = (name: string) => {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
+    const color = colors[name.length % colors.length];
+    return color;
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-    document.body.classList.toggle('dark-mode', !isDarkMode);
+  const generateRandomName = () => {
+    const adjectives = ['Cool', 'Smart', 'Happy', 'Brave', 'Kind', 'Funny', 'Creative', 'Bright'];
+    const nouns = ['Panda', 'Tiger', 'Eagle', 'Dolphin', 'Lion', 'Wolf', 'Fox', 'Bear'];
+    const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 999)}`;
+    setTempUsername(randomName);
   };
 
   if (!username) {
     return (
-      <div className={`login-container ${isDarkMode ? 'dark' : ''}`}>
-        <NotificationBanner 
-          notifications={notifications} 
-          onRemove={removeNotification} 
-        />
-        
-        <div className="login-card modern-card">
-          <div className="login-header">
-            <div className="app-logo">🌍</div>
-            <h1>Global Chat</h1>
-            <p>Connect with people from around the world!</p>
-          </div>
-          
-          <div className="profile-setup">
-            <ProfilePicture
-              username={tempUsername || 'User'}
-              avatarUrl={userAvatar}
-              size="large"
-              allowEdit={true}
-              onAvatarChange={setUserAvatar}
-            />
-          </div>
-          
-          <div className="connection-status modern-status">
-            <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-              <div className="status-dot"></div>
-              <span>
+      <div className="login-screen">
+        <div className="login-container">
+          <div className="login-card">
+            <div className="login-header">
+              <div className="app-icon">💬</div>
+              <h1>Global Chat</h1>
+              <p>Connect with people worldwide</p>
+            </div>
+            
+            <div className="connection-status">
+              <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
+              <span className="status-text">
                 {isConnected ? `${onlineCount} people online` : 'Connecting...'}
               </span>
             </div>
-            <div className="location-info">
-              <span className="location-icon">📍</span>
-              <span>Your location: {userCountry}</span>
-            </div>
-          </div>
-
-          <div className="login-form">
-            <div className="input-group modern-input">
+            
+            <div className="login-form">
               <input
                 type="text"
-                placeholder="Enter your name"
+                placeholder="Enter your name..."
                 value={tempUsername}
                 onChange={(e) => setTempUsername(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && tempUsername.length >= 2 && joinChat()}
-                className="username-input"
+                className="name-input"
                 maxLength={20}
+                autoFocus
               />
-              <div className="input-actions">
+              
+              <div className="login-buttons">
                 <button 
                   onClick={generateRandomName}
-                  className="random-btn modern-btn"
-                  title="Generate random name"
+                  className="random-btn"
+                  type="button"
                 >
-                  🎲
+                  🎲 Random
                 </button>
                 <button 
                   onClick={joinChat}
                   disabled={tempUsername.length < 2 || !isConnected || isLoading}
-                  className="join-btn modern-btn primary"
+                  className="join-btn"
                 >
-                  {isLoading ? '⏳' : '🚀'} Join Chat
+                  {isLoading ? '⏳ Joining...' : '🚀 Join Chat'}
                 </button>
               </div>
+              
+              <div className="char-counter">
+                {tempUsername.length}/20 characters
+              </div>
             </div>
-            <div className="character-count">
-              {tempUsername.length}/20 characters
+            
+            <div className="location-info">
+              📍 Your location: {userCountry}
             </div>
-          </div>
-
-          <div className="login-footer">
-            <div className="theme-toggle">
-              <button onClick={toggleTheme} className="theme-btn modern-btn">
-                {isDarkMode ? '☀️' : '🌙'} {isDarkMode ? 'Light' : 'Dark'} Mode
-              </button>
-            </div>
-            <p className="footer-text">🤝 Be respectful and have fun!</p>
           </div>
         </div>
       </div>
@@ -468,125 +258,76 @@ const ModernChat: React.FC = () => {
   }
 
   return (
-    <div className={`chat-container ${isDarkMode ? 'dark' : ''}`}>
-      <NotificationBanner 
-        notifications={notifications} 
-        onRemove={removeNotification} 
-      />
-
-      {/* Enhanced Header */}
-      <header className="chat-header modern-header">
-        <div className="header-info">
-          <div className="app-branding">
-            <span className="app-icon">🌍</span>
-            <h1>Global Chat</h1>
-          </div>
-          <div className="user-info">
-            <ProfilePicture
-              username={username}
-              avatarUrl={userAvatar}
-              size="small"
-              isOnline={true}
-              allowEdit={true}
-              onAvatarChange={handleAvatarChange}
-            />
-            <div className="user-details">
-              <span className="username">👤 {username}</span>
-              <span className="location">📍 {userCountry}</span>
-            </div>
+    <div className="chat-app">
+      {/* Header */}
+      <div className="chat-header">
+        <div className="header-left">
+          <div className="chat-info">
+            <h2>Global Chat</h2>
+            <p>{onlineCount} members online</p>
           </div>
         </div>
         
-        <div className="header-stats">
-          <div className="chat-stats">
-            <div className="stat-item">
-              <span className="stat-value">{chatStats.messagesSent}</span>
-              <span className="stat-label">Messages</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-value">{formatActiveTime(chatStats.activeTime)}</span>
-              <span className="stat-label">Active</span>
-            </div>
-          </div>
-          
-          <div className="header-controls">
-            <button 
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`control-btn ${soundEnabled ? 'active' : ''}`}
-              title={soundEnabled ? 'Disable sounds' : 'Enable sounds'}
+        <div className="header-right">
+          <div className="user-info">
+            <div 
+              className="user-avatar"
+              style={{ backgroundColor: generateAvatar(username) }}
             >
-              {soundEnabled ? '🔊' : '🔇'}
-            </button>
-            
-            <button 
-              onClick={toggleTheme}
-              className="control-btn"
-              title="Toggle theme"
-            >
-              {isDarkMode ? '☀️' : '🌙'}
-            </button>
-            
-            <div className="online-count">
-              <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-                <div className="status-dot"></div>
-                <span>{onlineCount} online</span>
-              </div>
+              {username.charAt(0).toUpperCase()}
             </div>
-            
-            <button onClick={leaveChat} className="leave-btn modern-btn danger">
-              🚪 Leave
-            </button>
+            <span className="username">{username}</span>
           </div>
+          <button onClick={leaveChat} className="leave-btn">
+            Leave
+          </button>
         </div>
-      </header>
+      </div>
 
       <div className="chat-body">
-        {/* Enhanced Messages Area */}
-        <div className="messages-section modern-card">
+        {/* Messages */}
+        <div className="messages-area">
           <div className="messages-container">
             {messages.length === 0 ? (
-              <div className="welcome-message">
-                <div className="welcome-animation">🎉</div>
+              <div className="welcome-screen">
+                <div className="welcome-icon">👋</div>
                 <h3>Welcome to Global Chat!</h3>
                 <p>Start a conversation with people from around the world</p>
-                <div className="welcome-feature">
-                  <span className="feature-icon">⏰</span>
-                  <span>Messages auto-delete after 30 seconds to keep chat fresh!</span>
-                </div>
               </div>
             ) : (
-              messages.map((msg) => (
+              messages.map((msg, index) => (
                 <div 
                   key={msg.id} 
-                  className={`message modern-message ${msg.type} ${msg.user === username ? 'own-message' : ''}`}
+                  className={`message-wrapper ${msg.user === username ? 'own' : 'other'}`}
                 >
                   {msg.type === 'system' ? (
                     <div className="system-message">
-                      <div className="system-icon">ℹ️</div>
-                      <div className="system-content">
-                        <span className="system-text">{msg.text}</span>
-                        <span className="message-time">{formatTime(msg.timestamp)}</span>
-                      </div>
+                      <span>{msg.text}</span>
+                      <time>{formatTime(msg.timestamp)}</time>
                     </div>
                   ) : (
-                    <div className="user-message">
-                      <ProfilePicture
-                        username={msg.user}
-                        avatarUrl={msg.avatar}
-                        size="small"
-                        isOnline={onlineUsers.some(u => u.username === msg.user)}
-                      />
-                      <div className="message-content-wrapper">
-                        <div className="message-header">
-                          <span className="message-user">
-                            {msg.user === username ? 'You' : msg.user}
-                          </span>
-                          {msg.country && (
-                            <span className="message-country">🌍 {msg.country}</span>
-                          )}
-                          <span className="message-time">{formatTime(msg.timestamp)}</span>
+                    <div className="message">
+                      {msg.user !== username && (
+                        <div 
+                          className="message-avatar"
+                          style={{ backgroundColor: generateAvatar(msg.user) }}
+                        >
+                          {msg.user.charAt(0).toUpperCase()}
                         </div>
-                        <div className="message-content">{msg.text}</div>
+                      )}
+                      
+                      <div className="message-content">
+                        {msg.user !== username && (
+                          <div className="message-header">
+                            <span className="sender-name">{msg.user}</span>
+                            {msg.country && <span className="sender-location">🌍 {msg.country}</span>}
+                          </div>
+                        )}
+                        
+                        <div className="message-bubble">
+                          <p>{msg.text}</p>
+                          <time className="message-time">{formatTime(msg.timestamp)}</time>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -595,7 +336,7 @@ const ModernChat: React.FC = () => {
             )}
             
             {typingUsers.length > 0 && (
-              <div className="typing-indicator modern-typing">
+              <div className="typing-indicator">
                 <div className="typing-dots">
                   <span></span>
                   <span></span>
@@ -609,107 +350,62 @@ const ModernChat: React.FC = () => {
             
             <div ref={messagesEndRef} />
           </div>
-
-          {/* Enhanced Message Input */}
-          <div className="message-input-container modern-input-container">
-            <div className="input-wrapper">
-              <button 
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="emoji-btn modern-btn"
-                title="Add emoji"
-              >
-                😀
-              </button>
-              
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Type your message to the world..."
-                className="message-input"
-                maxLength={500}
-                disabled={!isConnected}
-              />
-              
-              <div className="input-actions">
-                <span className="char-count">{inputValue.length}/500</span>
-                <button 
-                  onClick={sendMessage}
-                  disabled={!inputValue.trim() || !isConnected}
-                  className="send-btn modern-btn primary"
-                  title="Send message"
-                >
-                  🚀
-                </button>
-              </div>
-            </div>
-
-            {showEmojiPicker && (
-              <div className="emoji-picker modern-card">
-                {emojis.map((emoji, index) => (
-                  <button
-                    key={index}
-                    onClick={() => addEmoji(emoji)}
-                    className="emoji-option"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Enhanced Users Sidebar */}
-        <div className="users-sidebar modern-card">
+        {/* Sidebar */}
+        <div className="sidebar">
           <div className="sidebar-header">
-            <h3>🟢 Online Now ({onlineUsers.length})</h3>
-            <button 
-              className="refresh-btn modern-btn"
-              onClick={() => socket?.emit('requestUserList')}
-              title="Refresh user list"
-            >
-              🔄
-            </button>
+            <h3>Online ({onlineUsers.length})</h3>
           </div>
           
           <div className="users-list">
-            {onlineUsers.length === 0 ? (
-              <div className="no-users">
-                <div className="no-users-icon">👥</div>
-                <p>No users online</p>
-              </div>
-            ) : (
-              onlineUsers.map((user, index) => (
+            {onlineUsers.map((user, index) => (
+              <div 
+                key={index} 
+                className={`user-item ${user.username === username ? 'current-user' : ''}`}
+              >
                 <div 
-                  key={index} 
-                  className={`user-item modern-user-item ${user.username === username ? 'current-user' : ''}`}
+                  className="user-avatar small"
+                  style={{ backgroundColor: generateAvatar(user.username) }}
                 >
-                  <ProfilePicture
-                    username={user.username}
-                    avatarUrl={user.avatar}
-                    size="small"
-                    isOnline={true}
-                  />
-                  <div className="user-details">
-                    <div className="user-name">
-                      {user.username === username ? `${user.username} (You)` : user.username}
-                      {user.isTyping && <span className="typing-badge">✏️</span>}
-                    </div>
-                    <div className="user-country">🌍 {user.country}</div>
-                    <div className="user-join-time">
-                      Joined {new Date(user.joinTime).toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </div>
-                  </div>
+                  {user.username.charAt(0).toUpperCase()}
                 </div>
-              ))
-            )}
+                <div className="user-details">
+                  <div className="user-name">
+                    {user.username === username ? `${user.username} (You)` : user.username}
+                  </div>
+                  <div className="user-country">🌍 {user.country}</div>
+                </div>
+                <div className="online-indicator"></div>
+              </div>
+            ))}
           </div>
+        </div>
+      </div>
+
+      {/* Input Area */}
+      <div className="input-area">
+        <div className="input-container">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder="Type a message..."
+            className="message-input"
+            maxLength={500}
+            disabled={!isConnected}
+          />
+          <button 
+            onClick={sendMessage}
+            disabled={!inputValue.trim() || !isConnected}
+            className="send-btn"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>

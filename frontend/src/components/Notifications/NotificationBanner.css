@@ -23,24 +23,12 @@
 
 .notification:hover {
   transform: scale(1.02);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 
-.notification-success {
-  border-left: 4px solid #4caf50;
-}
-
-.notification-info {
-  border-left: 4px solid #2196f3;
-}
-
-.notification-warning {
-  border-left: 4px solid #ff9800;
-}
-
-.notification-error {
-  border-left: 4px solid #f44336;
-}
+.notification-success { border-left: 4px solid #4caf50; }
+.notification-info { border-left: 4px solid #2196f3; }
+.notification-warning { border-left: 4px solid #ff9800; }
+.notification-error { border-left: 4px solid #f44336; }
 
 .notification-content {
   display: flex;
@@ -99,18 +87,4 @@
     transform: translateX(0);
     opacity: 1;
   }
-}
-
-/* Dark mode */
-.dark .notification {
-  background: rgba(40, 40, 40, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.dark .notification-title {
-  color: #fff;
-}
-
-.dark .notification-message {
-  color: #ccc;
 }
