@@ -3,9 +3,20 @@
   display: inline-block;
 }
 
-.profile-picture-container.small { width: 32px; height: 32px; }
-.profile-picture-container.medium { width: 48px; height: 48px; }
-.profile-picture-container.large { width: 80px; height: 80px; }
+.profile-picture-container.small {
+  width: 32px;
+  height: 32px;
+}
+
+.profile-picture-container.medium {
+  width: 48px;
+  height: 48px;
+}
+
+.profile-picture-container.large {
+  width: 80px;
+  height: 80px;
+}
 
 .profile-picture-wrapper {
   position: relative;
@@ -31,6 +42,7 @@
 
 .profile-picture:hover {
   transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .profile-initial {

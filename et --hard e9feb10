@@ -1,0 +1,17 @@
+[33ma35e74f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Updated Functionalities/ UI fixes
+[33me9feb10[m Complete UI overhaul - Telegram-inspired clean design with working real-time chat
+[33m31a5d49[m Major UI enhancement: Added profile pictures, notifications, dark mode, and improved UX
+[33mf32cc33[m Major UI enhancement: Added profile pictures, notifications, dark mode, and improved UX
+[33md246345[m Fix TypeScript errors - app builds successfully
+[33m1630668[m Fix all TypeScript and build errors
+[33m2761c93[m Complete chat app with all fixes
+[33m2409521[m Fix Chat.tsx import references and finalize TypeScript setup
+[33m4019de8[m Fix all TypeScript errors - Socket.IO import, typing, and error handlers
+[33me8558a6[m Fix Socket.IO client import for TypeScript
+[33mb8cd441[m Fix TypeScript errors and update modern chat UI
+[33mf31e721[m Add modern UI and fix chat functionality
+[33m8c443d2[m Add missing dependencies to backend/package.json
+[33me81b682[m Fix frontend folder - remove submodule behavior
+[33m8d42395[m Merge branch 'main' of https://github.com/mayurshinde03/real-time-chat-app Important
+[33m50d131e[m Initial commit: Real-time chat app with React and Node.js
+[33mdf08290[m Initial commit
